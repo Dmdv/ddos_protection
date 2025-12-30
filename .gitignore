@@ -29,3 +29,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.log
+consensus.md
+init.md
+.docs/

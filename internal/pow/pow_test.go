@@ -347,10 +347,6 @@ func TestSolver_Solve(t *testing.T) {
 		t.Fatalf("Solve() error = %v", err)
 	}
 
-	if solution.Counter == 0 && !hasLeadingZeros(make([]byte, 32), MinDifficulty) {
-		// Counter 0 is valid only if it happens to produce enough zeros
-	}
-
 	// Verify the solution is valid
 	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 	if err := verifier.Verify(solution); err != nil {
@@ -447,7 +443,7 @@ func BenchmarkVerifier_Verify(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		verifier.Verify(solution)
+		_ = verifier.Verify(solution)
 	}
 }
 
@@ -460,7 +456,7 @@ func BenchmarkSolver_Difficulty16(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		challenge, _ := gen.Generate(16)
 		ctx := context.Background()
-		solver.Solve(ctx, challenge)
+		_, _ = solver.Solve(ctx, challenge)
 	}
 }
 
@@ -473,7 +469,7 @@ func BenchmarkSolver_Difficulty20(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		challenge, _ := gen.Generate(20)
 		ctx := context.Background()
-		solver.Solve(ctx, challenge)
+		_, _ = solver.Solve(ctx, challenge)
 	}
 }
 

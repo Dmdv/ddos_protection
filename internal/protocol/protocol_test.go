@@ -702,12 +702,12 @@ func TestIntegration_ErrorFlow(t *testing.T) {
 	go func() {
 		msg, _ := ReadMessage(server)
 		if msg.Type == TypeRequestChallenge {
-			WriteMessage(server, NewError(ErrCodeRateLimited))
+			_ = WriteMessage(server, NewError(ErrCodeRateLimited))
 		}
 	}()
 
 	// Client flow
-	WriteMessage(client, NewRequestChallenge())
+	_ = WriteMessage(client, NewRequestChallenge())
 
 	msg, err := ReadMessage(client)
 	if err != nil {
@@ -734,7 +734,7 @@ func BenchmarkMessage_Marshal(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		msg.Marshal()
+		_, _ = msg.Marshal()
 	}
 }
 
@@ -746,7 +746,7 @@ func BenchmarkMessage_WriteRead(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf.Reset()
-		WriteMessage(&buf, msg)
-		ReadMessage(&buf)
+		_ = WriteMessage(&buf, msg)
+		_, _ = ReadMessage(&buf)
 	}
 }

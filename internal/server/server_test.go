@@ -62,7 +62,7 @@ func TestServer_Start(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go server.Start(ctx)
+		go func() { _ = server.Start(ctx) }()
 		time.Sleep(50 * time.Millisecond)
 
 		// Second start should fail
@@ -82,7 +82,7 @@ func TestServer_Shutdown(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		go server.Start(ctx)
+		go func() { _ = server.Start(ctx) }()
 		time.Sleep(50 * time.Millisecond)
 
 		// Cancel context to trigger shutdown
@@ -104,7 +104,7 @@ func TestServer_Stats(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go server.Start(ctx)
+	go func() { _ = server.Start(ctx) }()
 	time.Sleep(50 * time.Millisecond)
 
 	stats := server.Stats()
@@ -143,7 +143,7 @@ func TestServer_RateLimiting(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go server.Start(ctx)
+	go func() { _ = server.Start(ctx) }()
 	time.Sleep(50 * time.Millisecond)
 
 	// First connection should succeed
@@ -162,7 +162,7 @@ func TestServer_RateLimiting(t *testing.T) {
 		}
 
 		// Try to read error message
-		conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 		msg, err := protocol.ReadMessage(conn)
 		conn.Close()
 
@@ -203,7 +203,7 @@ func TestServer_PoolFull(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go server.Start(ctx)
+	go func() { _ = server.Start(ctx) }()
 	time.Sleep(50 * time.Millisecond)
 
 	// Fill pool with connections that stay open
@@ -231,7 +231,7 @@ func TestServer_PoolFull(t *testing.T) {
 	}
 	defer conn.Close()
 
-	conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	msg, err := protocol.ReadMessage(conn)
 	if err != nil {
 		t.Fatalf("failed to read message: %v", err)
@@ -253,7 +253,7 @@ func TestServer_HappyPath(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go server.Start(ctx)
+	go func() { _ = server.Start(ctx) }()
 	time.Sleep(50 * time.Millisecond)
 
 	// Connect to server
@@ -264,7 +264,7 @@ func TestServer_HappyPath(t *testing.T) {
 	defer conn.Close()
 
 	// Set deadline for entire exchange
-	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	// Send REQUEST_CHALLENGE
 	if err := protocol.WriteMessage(conn, protocol.NewRequestChallenge()); err != nil {
@@ -334,7 +334,7 @@ func TestServer_InvalidSolutionRetry(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go server.Start(ctx)
+	go func() { _ = server.Start(ctx) }()
 	time.Sleep(50 * time.Millisecond)
 
 	conn, err := net.Dial("tcp", server.Addr().String())
@@ -343,10 +343,10 @@ func TestServer_InvalidSolutionRetry(t *testing.T) {
 	}
 	defer conn.Close()
 
-	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	// Get challenge
-	protocol.WriteMessage(conn, protocol.NewRequestChallenge())
+	_ = protocol.WriteMessage(conn, protocol.NewRequestChallenge())
 	msg, _ := protocol.ReadMessage(conn)
 
 	challenge, _ := pow.UnmarshalChallenge(msg.Payload)
@@ -358,7 +358,7 @@ func TestServer_InvalidSolutionRetry(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		protocol.WriteMessage(conn, protocol.NewSolution(invalidSolution.Marshal()))
+		_ = protocol.WriteMessage(conn, protocol.NewSolution(invalidSolution.Marshal()))
 		msg, err := protocol.ReadMessage(conn)
 		if err != nil {
 			t.Fatalf("failed to read response: %v", err)
@@ -375,7 +375,7 @@ func TestServer_InvalidSolutionRetry(t *testing.T) {
 	}
 
 	// Third invalid attempt should get TOO_MANY_ATTEMPTS
-	protocol.WriteMessage(conn, protocol.NewSolution(invalidSolution.Marshal()))
+	_ = protocol.WriteMessage(conn, protocol.NewSolution(invalidSolution.Marshal()))
 	msg, err = protocol.ReadMessage(conn)
 	if err != nil {
 		t.Fatalf("failed to read response: %v", err)
@@ -393,7 +393,7 @@ func TestServer_Concurrent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go server.Start(ctx)
+	go func() { _ = server.Start(ctx) }()
 	time.Sleep(50 * time.Millisecond)
 
 	// Capture server address once to avoid race with Start()
@@ -414,10 +414,10 @@ func TestServer_Concurrent(t *testing.T) {
 			}
 			defer conn.Close()
 
-			conn.SetDeadline(time.Now().Add(10 * time.Second))
+			_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 
 			// Full protocol exchange
-			protocol.WriteMessage(conn, protocol.NewRequestChallenge())
+			_ = protocol.WriteMessage(conn, protocol.NewRequestChallenge())
 			msg, err := protocol.ReadMessage(conn)
 			if err != nil || msg.Type != protocol.TypeChallenge {
 				return
@@ -430,7 +430,7 @@ func TestServer_Concurrent(t *testing.T) {
 				return
 			}
 
-			protocol.WriteMessage(conn, protocol.NewSolution(solution.Marshal()))
+			_ = protocol.WriteMessage(conn, protocol.NewSolution(solution.Marshal()))
 			msg, err = protocol.ReadMessage(conn)
 			if err != nil || msg.Type != protocol.TypeQuote {
 				return
@@ -498,7 +498,7 @@ func TestServer_LoadTest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go server.Start(ctx)
+	go func() { _ = server.Start(ctx) }()
 	time.Sleep(100 * time.Millisecond)
 
 	serverAddr := server.Addr().String()
@@ -526,7 +526,7 @@ func TestServer_LoadTest(t *testing.T) {
 			}
 			defer conn.Close()
 
-			conn.SetDeadline(time.Now().Add(clientTimeout))
+			_ = conn.SetDeadline(time.Now().Add(clientTimeout))
 
 			// Request challenge
 			if err := protocol.WriteMessage(conn, protocol.NewRequestChallenge()); err != nil {
@@ -611,7 +611,7 @@ func TestServer_Security(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go server.Start(ctx)
+		go func() { _ = server.Start(ctx) }()
 		time.Sleep(50 * time.Millisecond)
 
 		conn, err := net.Dial("tcp", server.Addr().String())
@@ -620,10 +620,10 @@ func TestServer_Security(t *testing.T) {
 		}
 		defer conn.Close()
 
-		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 		// Get legitimate challenge
-		protocol.WriteMessage(conn, protocol.NewRequestChallenge())
+		_ = protocol.WriteMessage(conn, protocol.NewRequestChallenge())
 		msg, _ := protocol.ReadMessage(conn)
 		challenge, _ := pow.UnmarshalChallenge(msg.Payload)
 
@@ -646,7 +646,7 @@ func TestServer_Security(t *testing.T) {
 		}
 
 		// Send forged solution
-		protocol.WriteMessage(conn, protocol.NewSolution(forgedSolution.Marshal()))
+		_ = protocol.WriteMessage(conn, protocol.NewSolution(forgedSolution.Marshal()))
 		msg, err = protocol.ReadMessage(conn)
 		if err != nil {
 			t.Fatalf("failed to read response: %v", err)
@@ -668,7 +668,7 @@ func TestServer_Security(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go server.Start(ctx)
+		go func() { _ = server.Start(ctx) }()
 		time.Sleep(50 * time.Millisecond)
 
 		conn, err := net.Dial("tcp", server.Addr().String())
@@ -677,15 +677,15 @@ func TestServer_Security(t *testing.T) {
 		}
 		defer conn.Close()
 
-		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 		// Get challenge
-		protocol.WriteMessage(conn, protocol.NewRequestChallenge())
-		protocol.ReadMessage(conn)
+		_ = protocol.WriteMessage(conn, protocol.NewRequestChallenge())
+		_, _ = protocol.ReadMessage(conn)
 
 		// Send garbage as solution
 		malformedSolution := []byte{0x00, 0x01, 0x02, 0x03}
-		protocol.WriteMessage(conn, protocol.NewSolution(malformedSolution))
+		_ = protocol.WriteMessage(conn, protocol.NewSolution(malformedSolution))
 
 		msg, err := protocol.ReadMessage(conn)
 		if err != nil {
@@ -721,7 +721,7 @@ func TestServer_Security(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go server.Start(ctx)
+		go func() { _ = server.Start(ctx) }()
 		time.Sleep(50 * time.Millisecond)
 
 		conn, err := net.Dial("tcp", server.Addr().String())
@@ -746,7 +746,7 @@ func TestServer_Security(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go server.Start(ctx)
+		go func() { _ = server.Start(ctx) }()
 		time.Sleep(50 * time.Millisecond)
 
 		conn, err := net.Dial("tcp", server.Addr().String())
@@ -755,11 +755,11 @@ func TestServer_Security(t *testing.T) {
 		}
 		defer conn.Close()
 
-		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 		// Send SOLUTION without getting challenge first
 		invalidSolution := &pow.Solution{Counter: 12345}
-		protocol.WriteMessage(conn, protocol.NewSolution(invalidSolution.Marshal()))
+		_ = protocol.WriteMessage(conn, protocol.NewSolution(invalidSolution.Marshal()))
 
 		msg, err := protocol.ReadMessage(conn)
 		if err != nil {

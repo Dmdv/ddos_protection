@@ -66,14 +66,14 @@ type shard struct {
 
 // limiter implements Limiter using sharded token buckets.
 type limiter struct {
-	shards       []*shard
-	shardCount   int
-	rate         float64
-	burst        int
-	maxBuckets   int
-	bucketCount  atomic.Int64 // Total bucket count across all shards
-	stopChan     chan struct{}
-	stopOnce     sync.Once
+	shards      []*shard
+	shardCount  int
+	rate        float64
+	burst       int
+	maxBuckets  int
+	bucketCount atomic.Int64 // Total bucket count across all shards
+	stopChan    chan struct{}
+	stopOnce    sync.Once
 
 	cleanupInterval time.Duration
 	cleanupAge      time.Duration
