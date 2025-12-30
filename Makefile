@@ -146,8 +146,8 @@ demo:
 	@echo "Waiting for server to be healthy..."
 	@sleep 10
 	@echo ""
-	@echo "Opening Prometheus UI..."
-	@$(OPEN_CMD) "http://localhost:9092/graph?g0.expr=pow_challenges_issued_total&g0.tab=0" 2>/dev/null || echo "Open http://localhost:9092 in your browser"
+	@echo "Opening Prometheus UI with metrics dashboard..."
+	@$(OPEN_CMD) "http://localhost:9092/graph?g0.expr=rate(pow_challenges_issued_total[30s])&g0.tab=0&g0.range_input=5m&g1.expr=rate(pow_challenges_solved_total[30s])&g1.tab=0&g1.range_input=5m&g2.expr=rate(rate_limit_hits_total[30s])&g2.tab=0&g2.range_input=5m&g3.expr=tcp_connections_active&g3.tab=0&g3.range_input=5m" 2>/dev/null || echo "Open http://localhost:9092 in your browser"
 	@echo ""
 	@echo "Starting load test (20 workers, 60 seconds)..."
 	@echo "Watch the metrics update in real-time in your browser!"
