@@ -1,0 +1,111 @@
+# Word of Wisdom TCP Server - Docker Compose Configuration
+# WARNING: Default POW_SECRET is for development only. Set POW_SECRET env var in production.
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: server
+    container_name: wow-server
+    ports:
+      - "8080:8080"   # TCP server
+      - "9090:9090"   # Metrics
+    environment:
+      - SERVER_ADDRESS=:8080
+      - METRICS_ADDRESS=:9090
+      - MAX_CONNECTIONS=10000
+      # SECURITY: Set POW_SECRET in production! Default is for development only.
+      - POW_SECRET=${POW_SECRET:-this-is-exactly-32-byte-secret!!}
+      - POW_DIFFICULTY=20
+      - POW_MIN_DIFFICULTY=16
+      - POW_MAX_DIFFICULTY=24
+      - READ_TIMEOUT=10s
+      - WRITE_TIMEOUT=10s
+      - IDLE_TIMEOUT=5s
+      - CHALLENGE_TIMEOUT=60s
+      - GRACEFUL_TIMEOUT=30s
+      - CLOCK_SKEW_TOLERANCE=30s
+      - RATE_LIMIT_RPS=10
+      - RATE_LIMIT_BURST=20
+      - MAX_CONNECTIONS_PER_IP=100
+      - MAX_ATTEMPTS_PER_IP=5
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '2.0'
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - wow-network
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: client
+    container_name: wow-client
+    depends_on:
+      server:
+        condition: service_healthy
+    command: ["--server", "server:8080", "--verbose"]
+    networks:
+      - wow-network
+    # Client exits after getting quote, so no restart policy
+
+  # Optional: Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: wow-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - server
+    networks:
+      - wow-network
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for dashboards
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: wow-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      # SECURITY: Set GRAFANA_ADMIN_PASSWORD in production!
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - wow-network
+    profiles:
+      - monitoring
+
+networks:
+  wow-network:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

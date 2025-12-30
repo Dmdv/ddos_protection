@@ -1,0 +1,31 @@
+# Binaries
+/server
+/client
+*.exe
+
+# Coverage files
+*.out
+*.coverage
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Internal documentation (private)
+.docs/
+.docs_archive/
+.session/
+docs_v2/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+
+# Temporary files
+*.tmp
+*.log

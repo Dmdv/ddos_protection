@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+.docs/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test and coverage files
+coverage.out
+coverage.html
+*.test
+*.prof
+
+# Session artifacts
+.session/
+
+# Build artifacts
+bin/
+
+# OS files
+.DS_Store
+Thumbs.db
