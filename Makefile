@@ -1,11 +1,19 @@
 .PHONY: all build test test-race test-coverage test-bench test-integration clean fmt lint vet verify
-.PHONY: docker-build docker-build-server docker-build-client docker-up docker-up-all docker-down docker-logs docker-run-client
-.PHONY: run-server run-client mod help
+.PHONY: docker-build docker-build-server docker-build-client docker-build-loadtest docker-up docker-up-all docker-down docker-logs docker-run-client
+.PHONY: run-server run-client run-loadtest mod help demo demo-stop
+
+# Detect OS for browser opening
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	OPEN_CMD := open
+else
+	OPEN_CMD := xdg-open
+endif
 
 # Build targets
 all: verify build
 
-build: build-server build-client
+build: build-server build-client build-loadtest
 
 build-server:
 	@echo "Building server..."
@@ -14,6 +22,10 @@ build-server:
 build-client:
 	@echo "Building client..."
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/client ./cmd/client
+
+build-loadtest:
+	@echo "Building loadtest..."
+	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/loadtest ./cmd/loadtest
 
 # Test targets
 test:
@@ -73,6 +85,10 @@ docker-build-client:
 	@echo "Building client Docker image..."
 	docker build --target client -t wow-client:latest .
 
+docker-build-loadtest:
+	@echo "Building loadtest Docker image..."
+	docker build --target loadtest -t wow-loadtest:latest .
+
 docker-up:
 	@echo "Starting services..."
 	docker compose up -d server
@@ -103,6 +119,9 @@ run-server:
 run-client:
 	go run ./cmd/client
 
+run-loadtest:
+	go run ./cmd/loadtest --server localhost:8080
+
 mod:
 	go mod tidy
 	go mod download
@@ -116,6 +135,32 @@ test-integration: docker-build
 	@docker compose run --rm client && echo "Integration test PASSED" || (docker compose down && exit 1)
 	@docker compose down
 	@echo "Integration tests completed!"
+
+# Demo targets
+demo:
+	@echo "=== Word of Wisdom DDoS Protection Demo ==="
+	@echo ""
+	@echo "Starting server, Prometheus, and load test..."
+	@PROMETHEUS_PORT=9092 docker compose --profile demo up --build -d server prometheus
+	@echo ""
+	@echo "Waiting for server to be healthy..."
+	@sleep 10
+	@echo ""
+	@echo "Opening Prometheus UI..."
+	@$(OPEN_CMD) "http://localhost:9092/graph?g0.expr=pow_challenges_issued_total&g0.tab=0" 2>/dev/null || echo "Open http://localhost:9092 in your browser"
+	@echo ""
+	@echo "Starting load test (20 workers, 60 seconds)..."
+	@echo "Watch the metrics update in real-time in your browser!"
+	@echo ""
+	@PROMETHEUS_PORT=9092 docker compose --profile demo run --rm loadtest
+	@echo ""
+	@echo "Demo complete! Server and Prometheus are still running."
+	@echo "Run 'make demo-stop' to stop all services."
+
+demo-stop:
+	@echo "Stopping demo services..."
+	@PROMETHEUS_PORT=9092 docker compose --profile demo down
+	@echo "Demo services stopped."
 
 # Help target
 help:
@@ -148,7 +193,12 @@ help:
 	@echo "  make docker-logs    - Follow container logs"
 	@echo "  make docker-run-client - Run client against Docker server"
 	@echo ""
+	@echo "Demo:"
+	@echo "  make demo           - Run full demo (server + Prometheus + load test)"
+	@echo "  make demo-stop      - Stop demo services"
+	@echo ""
 	@echo "Development:"
 	@echo "  make run-server     - Run server locally"
 	@echo "  make run-client     - Run client locally"
+	@echo "  make run-loadtest   - Run load test locally"
 	@echo "  make clean          - Remove build artifacts"

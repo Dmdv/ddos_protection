@@ -42,6 +42,27 @@ This project implements a client-server system where clients must solve a comput
 4. Server verifies solution in O(1) time
 5. Server delivers a random wisdom quote
 
+## Demo
+
+Run the automated demo to see DDoS protection in action:
+
+```bash
+make demo
+```
+
+This will:
+1. Start the server and Prometheus
+2. Open Prometheus metrics dashboard in your browser
+3. Run a 60-second load test with 20 concurrent workers
+4. Display real-time statistics
+
+Watch the metrics update live as the load test runs. The rate limiter will reject ~93% of requests, demonstrating the DDoS protection working as designed.
+
+```bash
+# Stop demo when done
+make demo-stop
+```
+
 ## Quick Start
 
 ### Using Docker Compose
@@ -170,6 +191,7 @@ Prometheus metrics are exposed at `:9090/metrics`:
 .
 ├── cmd/
 │   ├── client/          # CLI client
+│   ├── loadtest/        # Load testing tool
 │   └── server/          # TCP server
 ├── internal/
 │   ├── config/          # Configuration management

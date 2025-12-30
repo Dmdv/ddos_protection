@@ -24,6 +24,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
     -o /client ./cmd/client
 
+# Build loadtest binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s" \
+    -o /loadtest ./cmd/loadtest
+
 # Server runtime stage
 FROM alpine:3.19 AS server
 
@@ -75,3 +80,26 @@ USER appuser
 # Run client
 ENTRYPOINT ["/usr/local/bin/client"]
 CMD ["--server", "server:8080", "--verbose"]
+
+# Loadtest runtime stage
+FROM alpine:3.19 AS loadtest
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates
+
+# Create non-root user
+RUN addgroup -g 1000 appgroup && \
+    adduser -u 1000 -G appgroup -s /bin/sh -D appuser
+
+# Copy binary from builder
+COPY --from=builder /loadtest /usr/local/bin/loadtest
+
+# Set ownership
+RUN chown appuser:appgroup /usr/local/bin/loadtest
+
+# Switch to non-root user
+USER appuser
+
+# Run loadtest
+ENTRYPOINT ["/usr/local/bin/loadtest"]
+CMD ["--server", "server:8080", "--workers", "10", "--duration", "30s"]
