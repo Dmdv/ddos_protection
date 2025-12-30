@@ -37,7 +37,12 @@ type verifierImpl struct {
 }
 
 // NewVerifier creates a new solution verifier.
-func NewVerifier(cfg VerifierConfig) Verifier {
+// Returns error if secret is less than 32 bytes.
+func NewVerifier(cfg VerifierConfig) (Verifier, error) {
+	if len(cfg.Secret) < MinSecretLength {
+		return nil, ErrSecretTooShort
+	}
+
 	timeout := cfg.ChallengeTimeout
 	if timeout == 0 {
 		timeout = 60 * time.Second
@@ -52,7 +57,7 @@ func NewVerifier(cfg VerifierConfig) Verifier {
 		secret:           cfg.Secret,
 		challengeTimeout: timeout,
 		clockSkew:        skew,
-	}
+	}, nil
 }
 
 // Verify performs 3-step validation:

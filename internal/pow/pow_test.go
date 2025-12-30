@@ -19,6 +19,15 @@ func mustNewGenerator(secret []byte) Generator {
 	return gen
 }
 
+// mustNewVerifier creates a verifier or panics (for tests only)
+func mustNewVerifier(cfg VerifierConfig) Verifier {
+	v, err := NewVerifier(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 // TestChallenge_Marshal verifies challenge serialization
 func TestChallenge_Marshal(t *testing.T) {
 	c := &Challenge{
@@ -204,7 +213,7 @@ func TestGenerator_Generate_UniqueNonces(t *testing.T) {
 // TestVerifier_Verify_ValidSolution tests happy path verification
 func TestVerifier_Verify_ValidSolution(t *testing.T) {
 	gen := mustNewGenerator(testSecret)
-	verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 	solver := NewSolver()
 
 	// Use low difficulty for fast testing
@@ -230,7 +239,7 @@ func TestVerifier_Verify_ValidSolution(t *testing.T) {
 func TestVerifier_Verify_InvalidSignature(t *testing.T) {
 	gen := mustNewGenerator(testSecret)
 	wrongSecret := []byte("wrong-secret-key-with-32-bytes!!!")
-	verifier := NewVerifier(VerifierConfig{Secret: wrongSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: wrongSecret})
 
 	challenge, _ := gen.Generate(MinDifficulty)
 
@@ -248,7 +257,7 @@ func TestVerifier_Verify_InvalidSignature(t *testing.T) {
 // TestVerifier_Verify_ExpiredChallenge tests timestamp validation
 func TestVerifier_Verify_ExpiredChallenge(t *testing.T) {
 	gen := mustNewGenerator(testSecret)
-	verifier := NewVerifier(VerifierConfig{
+	verifier := mustNewVerifier(VerifierConfig{
 		Secret:           testSecret,
 		ChallengeTimeout: 60 * time.Second,
 		ClockSkew:        30 * time.Second,
@@ -276,7 +285,7 @@ func TestVerifier_Verify_ExpiredChallenge(t *testing.T) {
 // TestVerifier_Verify_FutureTimestamp tests future timestamp rejection
 func TestVerifier_Verify_FutureTimestamp(t *testing.T) {
 	gen := mustNewGenerator(testSecret)
-	verifier := NewVerifier(VerifierConfig{
+	verifier := mustNewVerifier(VerifierConfig{
 		Secret:    testSecret,
 		ClockSkew: 30 * time.Second,
 	})
@@ -303,7 +312,7 @@ func TestVerifier_Verify_FutureTimestamp(t *testing.T) {
 // TestVerifier_Verify_InsufficientZeros tests difficulty validation
 func TestVerifier_Verify_InsufficientZeros(t *testing.T) {
 	gen := mustNewGenerator(testSecret)
-	verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 
 	challenge, _ := gen.Generate(BaseDifficulty)
 
@@ -343,7 +352,7 @@ func TestSolver_Solve(t *testing.T) {
 	}
 
 	// Verify the solution is valid
-	verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 	if err := verifier.Verify(solution); err != nil {
 		t.Errorf("Solution verification failed: %v", err)
 	}
@@ -429,7 +438,7 @@ func TestChallenge_Validate(t *testing.T) {
 // BenchmarkVerifier_Verify measures verification performance
 func BenchmarkVerifier_Verify(b *testing.B) {
 	gen := mustNewGenerator(testSecret)
-	verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 	solver := NewSolver()
 
 	challenge, _ := gen.Generate(MinDifficulty)
@@ -516,6 +525,46 @@ func TestNewGenerator_SecretValidation(t *testing.T) {
 	}
 }
 
+// TestNewVerifier_SecretValidation tests secret length validation
+func TestNewVerifier_SecretValidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		secret    []byte
+		wantErr   bool
+		errTarget error
+	}{
+		{"valid 32 bytes", make([]byte, 32), false, nil},
+		{"valid 64 bytes", make([]byte, 64), false, nil},
+		{"too short 31 bytes", make([]byte, 31), true, ErrSecretTooShort},
+		{"too short 16 bytes", make([]byte, 16), true, ErrSecretTooShort},
+		{"empty secret", []byte{}, true, ErrSecretTooShort},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, err := NewVerifier(VerifierConfig{Secret: tt.secret})
+			if tt.wantErr {
+				if err == nil {
+					t.Error("NewVerifier() should return error")
+				}
+				if tt.errTarget != nil && !errors.Is(err, tt.errTarget) {
+					t.Errorf("NewVerifier() error = %v, want %v", err, tt.errTarget)
+				}
+				if v != nil {
+					t.Error("NewVerifier() should return nil verifier on error")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("NewVerifier() unexpected error = %v", err)
+				}
+				if v == nil {
+					t.Error("NewVerifier() should return non-nil verifier")
+				}
+			}
+		})
+	}
+}
+
 // TestGenerator_Generate_DifficultyValidation tests difficulty bounds validation
 func TestGenerator_Generate_DifficultyValidation(t *testing.T) {
 	gen := mustNewGenerator(testSecret)
@@ -590,7 +639,7 @@ func TestSolverWithConfig(t *testing.T) {
 				t.Fatalf("Solve() error = %v", err)
 			}
 
-			verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+			verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 			if err := verifier.Verify(solution); err != nil {
 				t.Errorf("Solution verification failed: %v", err)
 			}
@@ -628,7 +677,7 @@ func TestSolverWithProgress(t *testing.T) {
 	}
 
 	// Verify solution is valid
-	verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 	if err := verifier.Verify(solution); err != nil {
 		t.Errorf("Solution verification failed: %v", err)
 	}
@@ -660,7 +709,7 @@ func TestSolverWithProgress_Solve(t *testing.T) {
 		t.Fatalf("Solve() error = %v", err)
 	}
 
-	verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 	if err := verifier.Verify(solution); err != nil {
 		t.Errorf("Solution verification failed: %v", err)
 	}
@@ -704,7 +753,7 @@ func TestSolverWithProgressConfig(t *testing.T) {
 		t.Fatalf("Solve() error = %v", err)
 	}
 
-	verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 	if err := verifier.Verify(solution); err != nil {
 		t.Errorf("Solution verification failed: %v", err)
 	}
@@ -751,7 +800,7 @@ func TestSolverWithProgress_MaxIterationsExceeded(t *testing.T) {
 
 // TestVerifier_InvalidDifficulty tests verifier handling of invalid difficulty
 func TestVerifier_InvalidDifficulty(t *testing.T) {
-	verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 
 	// Create a challenge with valid signature but invalid difficulty
 	gen := mustNewGenerator(testSecret)
@@ -777,7 +826,7 @@ func TestVerifier_InvalidDifficulty(t *testing.T) {
 
 // TestVerifier_InvalidVersion tests verifier handling of invalid version
 func TestVerifier_InvalidVersion(t *testing.T) {
-	verifier := NewVerifier(VerifierConfig{Secret: testSecret})
+	verifier := mustNewVerifier(VerifierConfig{Secret: testSecret})
 
 	gen := mustNewGenerator(testSecret)
 	challenge, _ := gen.Generate(MinDifficulty)

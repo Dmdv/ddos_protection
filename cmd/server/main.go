@@ -57,11 +57,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	verifier := pow.NewVerifier(pow.VerifierConfig{
+	verifier, err := pow.NewVerifier(pow.VerifierConfig{
 		Secret:           cfg.PowSecret,
 		ChallengeTimeout: cfg.ChallengeTimeout,
 		ClockSkew:        cfg.ClockSkewTolerance,
 	})
+	if err != nil {
+		logger.Error("failed to create PoW verifier", logging.Err(err))
+		os.Exit(1)
+	}
 
 	// Create difficulty manager
 	difficultyConfig := pow.DifficultyConfig{

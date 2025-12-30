@@ -84,6 +84,15 @@ func (m *mockTimeoutError) Error() string   { return "timeout" }
 func (m *mockTimeoutError) Timeout() bool   { return true }
 func (m *mockTimeoutError) Temporary() bool { return true }
 
+// mustNewVerifier creates a verifier or panics (for tests only)
+func mustNewVerifier(cfg pow.VerifierConfig) pow.Verifier {
+	v, err := pow.NewVerifier(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 func TestConnectionState_String(t *testing.T) {
 	tests := []struct {
 		state    connectionState
@@ -108,7 +117,7 @@ func TestConnectionState_String(t *testing.T) {
 func TestNewHandler(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	t.Run("with nil logger", func(t *testing.T) {
@@ -135,7 +144,7 @@ func TestNewHandler(t *testing.T) {
 func TestHandler_HandleReadError(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	config := DefaultHandlerConfig()
@@ -208,7 +217,7 @@ func TestHandler_HandleReadError(t *testing.T) {
 func TestHandler_HandleVerificationError(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	config := DefaultHandlerConfig()
@@ -332,7 +341,7 @@ func TestHandler_HandleVerificationError(t *testing.T) {
 func TestHandler_HandleAuthorized(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	config := DefaultHandlerConfig()
@@ -362,7 +371,7 @@ func TestHandler_HandleAuthorized(t *testing.T) {
 func TestHandler_HandleChallenging(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret, ClockSkew: time.Hour})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret, ClockSkew: time.Hour})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	config := DefaultHandlerConfig()
@@ -410,7 +419,7 @@ func TestHandler_HandleChallenging(t *testing.T) {
 func TestHandler_HandleConnected(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	config := DefaultHandlerConfig()
@@ -464,7 +473,7 @@ func TestHandler_HandleConnected(t *testing.T) {
 func TestHandler_SendMessage(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	config := DefaultHandlerConfig()
@@ -513,7 +522,7 @@ func TestHandler_SendMessage(t *testing.T) {
 func TestHandler_Handle_ContextCancellation(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	config := DefaultHandlerConfig()
@@ -552,7 +561,7 @@ func TestHandler_Handle_ContextCancellation(t *testing.T) {
 func TestHandler_Handle_SetDeadlineError(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	config := DefaultHandlerConfig()
@@ -575,7 +584,7 @@ func TestHandler_Handle_SetDeadlineError(t *testing.T) {
 func TestHandler_ProcessMessage_InvalidState(t *testing.T) {
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	config := DefaultHandlerConfig()

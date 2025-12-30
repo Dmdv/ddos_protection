@@ -135,7 +135,7 @@ func TestServer_RateLimiting(t *testing.T) {
 
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	server := New(config, generator, verifier, quoteStore)
@@ -195,7 +195,7 @@ func TestServer_PoolFull(t *testing.T) {
 
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	server := New(config, generator, verifier, quoteStore)
@@ -326,7 +326,7 @@ func TestServer_InvalidSolutionRetry(t *testing.T) {
 
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	server := New(config, generator, verifier, quoteStore)
@@ -490,7 +490,7 @@ func TestServer_LoadTest(t *testing.T) {
 
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	server := New(config, generator, verifier, quoteStore)
@@ -504,9 +504,9 @@ func TestServer_LoadTest(t *testing.T) {
 	serverAddr := server.Addr().String()
 
 	const (
-		numClients     = 30
-		targetSuccess  = 20 // At least 20 should succeed
-		clientTimeout  = 30 * time.Second
+		numClients    = 30
+		targetSuccess = 20 // At least 20 should succeed
+		clientTimeout = 30 * time.Second
 	)
 
 	var wg sync.WaitGroup
@@ -603,7 +603,7 @@ func TestServer_Security(t *testing.T) {
 
 		serverSecret := []byte("server-secret-key-32-bytes-long!")
 		generator, _ := pow.NewGenerator(serverSecret)
-		verifier := pow.NewVerifier(pow.VerifierConfig{Secret: serverSecret})
+		verifier := mustNewVerifier(pow.VerifierConfig{Secret: serverSecret})
 		quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 		server := New(config, generator, verifier, quoteStore)
@@ -713,7 +713,7 @@ func TestServer_Security(t *testing.T) {
 
 		secret := []byte("test-secret-key-32-bytes-long!!!")
 		generator, _ := pow.NewGenerator(secret)
-		verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+		verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 		quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 		server := New(config, generator, verifier, quoteStore)
@@ -797,7 +797,7 @@ func createTestServer(t *testing.T) *Server {
 
 	secret := []byte("test-secret-key-32-bytes-long!!!")
 	generator, _ := pow.NewGenerator(secret)
-	verifier := pow.NewVerifier(pow.VerifierConfig{Secret: secret})
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
 	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
 
 	return New(config, generator, verifier, quoteStore)

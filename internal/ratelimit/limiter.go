@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -29,6 +30,14 @@ type Config struct {
 
 	// CleanupAge is how long a bucket must be idle before removal.
 	CleanupAge time.Duration
+
+	// MaxBuckets is the maximum number of buckets allowed (0 = unlimited).
+	// When limit is reached, oldest buckets are evicted.
+	MaxBuckets int
+
+	// ShardCount is the number of shards for concurrent access (default: 16).
+	// Higher values reduce lock contention at the cost of memory.
+	ShardCount int
 }
 
 // DefaultConfig returns the default rate limiter configuration.
@@ -38,6 +47,8 @@ func DefaultConfig() Config {
 		Burst:           20,              // Allow bursts up to 20
 		CleanupInterval: 1 * time.Minute, // Clean up every minute
 		CleanupAge:      5 * time.Minute, // Remove after 5 minutes idle
+		MaxBuckets:      100000,          // Max 100K tracked IPs
+		ShardCount:      16,              // 16 shards for concurrency
 	}
 }
 
@@ -47,14 +58,22 @@ type bucket struct {
 	lastSeen time.Time
 }
 
-// limiter implements Limiter using token buckets.
+// shard represents a single shard of the rate limiter.
+type shard struct {
+	mu      sync.Mutex
+	buckets map[string]*bucket
+}
+
+// limiter implements Limiter using sharded token buckets.
 type limiter struct {
-	mu       sync.Mutex
-	buckets  map[string]*bucket
-	rate     float64
-	burst    int
-	stopChan chan struct{}
-	stopOnce sync.Once
+	shards       []*shard
+	shardCount   int
+	rate         float64
+	burst        int
+	maxBuckets   int
+	bucketCount  atomic.Int64 // Total bucket count across all shards
+	stopChan     chan struct{}
+	stopOnce     sync.Once
 
 	cleanupInterval time.Duration
 	cleanupAge      time.Duration
@@ -65,10 +84,24 @@ type limiter struct {
 
 // New creates a new rate limiter with the given configuration.
 func New(cfg Config) Limiter {
+	shardCount := cfg.ShardCount
+	if shardCount <= 0 {
+		shardCount = 16 // Default shard count
+	}
+
+	shards := make([]*shard, shardCount)
+	for i := range shards {
+		shards[i] = &shard{
+			buckets: make(map[string]*bucket),
+		}
+	}
+
 	l := &limiter{
-		buckets:         make(map[string]*bucket),
+		shards:          shards,
+		shardCount:      shardCount,
 		rate:            cfg.Rate,
 		burst:           cfg.Burst,
+		maxBuckets:      cfg.MaxBuckets,
 		stopChan:        make(chan struct{}),
 		cleanupInterval: cfg.CleanupInterval,
 		cleanupAge:      cfg.CleanupAge,
@@ -86,21 +119,45 @@ func NewWithDefaults() Limiter {
 	return New(DefaultConfig())
 }
 
+// getShard returns the shard for a given IP using FNV-1a hash.
+func (l *limiter) getShard(ip string) *shard {
+	// FNV-1a hash
+	var hash uint32 = 2166136261
+	for i := 0; i < len(ip); i++ {
+		hash ^= uint32(ip[i])
+		hash *= 16777619
+	}
+	return l.shards[hash%uint32(l.shardCount)]
+}
+
+// totalBuckets returns total bucket count (atomic, non-blocking).
+func (l *limiter) totalBuckets() int {
+	return int(l.bucketCount.Load())
+}
+
 // Allow checks if a request from the given IP is allowed.
 func (l *limiter) Allow(ip string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	s := l.getShard(ip)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	now := l.nowFunc()
 
-	b, ok := l.buckets[ip]
+	b, ok := s.buckets[ip]
 	if !ok {
+		// Check bucket limit before creating new bucket
+		if l.maxBuckets > 0 && l.totalBuckets() >= l.maxBuckets {
+			// Evict oldest bucket from this shard
+			l.evictOldestFromShard(s)
+		}
+
 		// Create new bucket with full tokens
 		b = &bucket{
 			tokens:   float64(l.burst),
 			lastSeen: now,
 		}
-		l.buckets[ip] = b
+		s.buckets[ip] = b
+		l.bucketCount.Add(1)
 	}
 
 	// Refill tokens based on elapsed time
@@ -121,6 +178,25 @@ func (l *limiter) Allow(ip string) bool {
 	}
 
 	return false
+}
+
+// evictOldestFromShard removes the oldest bucket from a shard.
+// Caller must hold shard lock.
+func (l *limiter) evictOldestFromShard(s *shard) {
+	var oldestIP string
+	var oldestTime time.Time
+
+	for ip, b := range s.buckets {
+		if oldestIP == "" || b.lastSeen.Before(oldestTime) {
+			oldestIP = ip
+			oldestTime = b.lastSeen
+		}
+	}
+
+	if oldestIP != "" {
+		delete(s.buckets, oldestIP)
+		l.bucketCount.Add(-1)
+	}
 }
 
 // Close stops the cleanup goroutine.
@@ -147,14 +223,16 @@ func (l *limiter) cleanupLoop() {
 
 // cleanup removes buckets that haven't been accessed recently.
 func (l *limiter) cleanup() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	now := l.nowFunc()
-	for ip, b := range l.buckets {
-		if now.Sub(b.lastSeen) > l.cleanupAge {
-			delete(l.buckets, ip)
+	for _, s := range l.shards {
+		s.mu.Lock()
+		for ip, b := range s.buckets {
+			if now.Sub(b.lastSeen) > l.cleanupAge {
+				delete(s.buckets, ip)
+				l.bucketCount.Add(-1)
+			}
 		}
+		s.mu.Unlock()
 	}
 }
 
@@ -165,9 +243,7 @@ type Stats struct {
 
 // Stats returns current limiter statistics (for metrics).
 func (l *limiter) Stats() Stats {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return Stats{ActiveBuckets: len(l.buckets)}
+	return Stats{ActiveBuckets: l.totalBuckets()}
 }
 
 // LimiterWithContext wraps a Limiter with context-aware methods.

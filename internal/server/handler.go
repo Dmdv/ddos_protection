@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/ddos_protection/internal/metrics"
 	"github.com/ddos_protection/internal/pow"
 	"github.com/ddos_protection/internal/protocol"
 	"github.com/ddos_protection/internal/quotes"
@@ -229,6 +230,9 @@ func (h *Handler) handleConnected(ctx context.Context, conn net.Conn, cc *connec
 		return true, err
 	}
 
+	// Record challenge issued metric
+	metrics.ChallengeIssued()
+
 	// Transition to CHALLENGING state
 	cc.state = stateChallenging
 	cc.challenge = challenge
@@ -279,6 +283,13 @@ func (h *Handler) handleChallenging(ctx context.Context, conn net.Conn, cc *conn
 
 	// Solution is valid - transition to AUTHORIZED
 	cc.state = stateAuthorized
+
+	// Record successful verification metrics
+	metrics.ChallengeSolved()
+	if !cc.challengeTime.IsZero() {
+		metrics.SolveDurationObserve(time.Since(cc.challengeTime))
+	}
+
 	cc.logger.Info("solution verified",
 		slog.String("state", cc.state.String()),
 		slog.Int("attempts", cc.attempts+1),
@@ -304,6 +315,7 @@ func (h *Handler) handleVerificationError(conn net.Conn, cc *connectionContext, 
 	switch {
 	case errors.Is(err, pow.ErrInvalidSignature):
 		errCode = protocol.ErrCodeInvalidSignature
+		metrics.ChallengeFailed()
 		// Invalid signature is fatal - close connection
 		if sendErr := h.sendError(conn, errCode); sendErr != nil {
 			return true, sendErr
@@ -312,6 +324,7 @@ func (h *Handler) handleVerificationError(conn net.Conn, cc *connectionContext, 
 
 	case errors.Is(err, pow.ErrChallengeExpired):
 		errCode = protocol.ErrCodeChallengeExpired
+		metrics.ChallengeExpired()
 		// Expired challenge is fatal - need new challenge
 		if sendErr := h.sendError(conn, errCode); sendErr != nil {
 			return true, sendErr
@@ -320,6 +333,7 @@ func (h *Handler) handleVerificationError(conn net.Conn, cc *connectionContext, 
 
 	case errors.Is(err, pow.ErrFutureTimestamp):
 		errCode = protocol.ErrCodeChallengeExpired
+		metrics.ChallengeExpired()
 		// Future timestamp treated as expired
 		if sendErr := h.sendError(conn, errCode); sendErr != nil {
 			return true, sendErr
@@ -328,6 +342,7 @@ func (h *Handler) handleVerificationError(conn net.Conn, cc *connectionContext, 
 
 	case errors.Is(err, pow.ErrInsufficientWork):
 		errCode = protocol.ErrCodeInvalidSolution
+		metrics.ChallengeFailed()
 
 		// Check if max attempts exceeded
 		if cc.attempts >= h.config.MaxAttempts {
@@ -349,6 +364,7 @@ func (h *Handler) handleVerificationError(conn net.Conn, cc *connectionContext, 
 	default:
 		// Unknown error - treat as invalid message
 		errCode = protocol.ErrCodeInvalidMessage
+		metrics.ChallengeFailed()
 		if sendErr := h.sendError(conn, errCode); sendErr != nil {
 			return true, sendErr
 		}
@@ -374,6 +390,9 @@ func (h *Handler) sendQuote(conn net.Conn, cc *connectionContext) (bool, error) 
 	if err := h.sendMessage(conn, quoteMsg); err != nil {
 		return true, err
 	}
+
+	// Record quote served metric
+	metrics.QuoteServed()
 
 	cc.state = stateCompleted
 	cc.logger.Info("quote sent",
