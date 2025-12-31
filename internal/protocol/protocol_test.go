@@ -731,22 +731,111 @@ func TestIntegration_ErrorFlow(t *testing.T) {
 // BenchmarkMessage_Marshal benchmarks message marshaling
 func BenchmarkMessage_Marshal(b *testing.B) {
 	msg := NewChallenge(make([]byte, 90))
+	var data []byte
+
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = msg.Marshal()
+		data, _ = msg.Marshal()
 	}
+	_ = data
 }
 
 // BenchmarkMessage_WriteRead benchmarks write/read cycle
 func BenchmarkMessage_WriteRead(b *testing.B) {
 	msg := NewChallenge(make([]byte, 90))
 	var buf bytes.Buffer
+	var readMsg *Message
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf.Reset()
 		_ = WriteMessage(&buf, msg)
-		_, _ = ReadMessage(&buf)
+		readMsg, _ = ReadMessage(&buf)
 	}
+	_ = readMsg
+}
+
+// BenchmarkReadMessage measures message reading performance
+func BenchmarkReadMessage(b *testing.B) {
+	msg := NewChallenge(make([]byte, 90))
+	data, _ := msg.Marshal()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var result *Message
+	for i := 0; i < b.N; i++ {
+		reader := bytes.NewReader(data)
+		result, _ = ReadMessage(reader)
+	}
+	// Prevent compiler optimization
+	_ = result
+}
+
+// BenchmarkWriteMessage measures message writing performance
+func BenchmarkWriteMessage(b *testing.B) {
+	msg := NewChallenge(make([]byte, 90))
+	var buf bytes.Buffer
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		_ = WriteMessage(&buf, msg)
+	}
+}
+
+// BenchmarkUnmarshalMessage measures message unmarshaling performance
+func BenchmarkUnmarshalMessage(b *testing.B) {
+	msg := NewChallenge(make([]byte, 90))
+	data, _ := msg.Marshal()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var result *Message
+	for i := 0; i < b.N; i++ {
+		result, _ = UnmarshalMessage(data)
+	}
+	// Prevent compiler optimization
+	_ = result
+}
+
+// BenchmarkReadMessage_Concurrent measures concurrent message reading
+func BenchmarkReadMessage_Concurrent(b *testing.B) {
+	msg := NewChallenge(make([]byte, 90))
+	data, _ := msg.Marshal()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		var result *Message
+		for pb.Next() {
+			reader := bytes.NewReader(data)
+			result, _ = ReadMessage(reader)
+		}
+		// Prevent compiler optimization
+		_ = result
+	})
+}
+
+// BenchmarkWriteMessage_Concurrent measures concurrent message writing
+func BenchmarkWriteMessage_Concurrent(b *testing.B) {
+	msg := NewChallenge(make([]byte, 90))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		var buf bytes.Buffer
+		for pb.Next() {
+			buf.Reset()
+			_ = WriteMessage(&buf, msg)
+		}
+	})
 }

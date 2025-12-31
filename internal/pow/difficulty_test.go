@@ -372,6 +372,7 @@ func BenchmarkDifficultyManager_Update(b *testing.B) {
 	cfg := DefaultDifficultyConfig()
 	dm := NewDifficultyManager(cfg)
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		dm.Update(5000, 100, 0.7)
@@ -381,9 +382,12 @@ func BenchmarkDifficultyManager_Update(b *testing.B) {
 func BenchmarkDifficultyManager_Current(b *testing.B) {
 	cfg := DefaultDifficultyConfig()
 	dm := NewDifficultyManager(cfg)
+	var result uint8
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = dm.Current()
+		result = dm.Current()
 	}
+	_ = result
 }

@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -325,24 +326,100 @@ func TestDefaultConfig(t *testing.T) {
 func BenchmarkLimiter_Allow(b *testing.B) {
 	l := NewWithDefaults()
 	defer l.Close()
+	var result bool
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		l.Allow("192.168.1.1")
+		result = l.Allow("192.168.1.1")
 	}
+	_ = result
 }
 
 func BenchmarkLimiter_Allow_MultipleIPs(b *testing.B) {
 	l := NewWithDefaults()
 	defer l.Close()
+	var result bool
 
 	ips := make([]string, 1000)
 	for i := range ips {
 		ips[i] = "192.168.1." + string(rune(i%256))
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		l.Allow(ips[i%len(ips)])
+		result = l.Allow(ips[i%len(ips)])
+	}
+	_ = result
+}
+
+// BenchmarkLimiter_Allow_Concurrent measures concurrent rate limit checking
+func BenchmarkLimiter_Allow_Concurrent(b *testing.B) {
+	l := NewWithDefaults()
+	defer l.Close()
+
+	// Pre-generate IPs to avoid allocation during benchmark
+	ips := make([]string, 1000)
+	for i := range ips {
+		ips[i] = fmt.Sprintf("10.0.%d.%d", i/256, i%256)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			l.Allow(ips[i%len(ips)])
+			i++
+		}
+	})
+}
+
+// BenchmarkLimiter_Shards measures performance with different shard counts
+func BenchmarkLimiter_Shards(b *testing.B) {
+	shardCounts := []struct {
+		name  string
+		count int
+	}{
+		{"1", 1},
+		{"4", 4},
+		{"8", 8},
+		{"16", 16},
+		{"32", 32},
+		{"64", 64},
+	}
+
+	for _, sc := range shardCounts {
+		b.Run("shards="+sc.name, func(b *testing.B) {
+			cfg := Config{
+				Rate:            100,
+				Burst:           10,
+				CleanupInterval: time.Hour,
+				CleanupAge:      time.Hour,
+				MaxBuckets:      0,
+				ShardCount:      sc.count,
+			}
+			l := New(cfg)
+			defer l.Close()
+
+			// Pre-generate IPs
+			ips := make([]string, 1000)
+			for i := range ips {
+				ips[i] = fmt.Sprintf("10.0.%d.%d", i/256, i%256)
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			b.RunParallel(func(pb *testing.PB) {
+				i := 0
+				for pb.Next() {
+					l.Allow(ips[i%len(ips)])
+					i++
+				}
+			})
+		})
 	}
 }

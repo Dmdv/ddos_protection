@@ -476,9 +476,12 @@ func BenchmarkSolver_Difficulty20(b *testing.B) {
 // BenchmarkHasLeadingZeros measures leading zeros check performance
 func BenchmarkHasLeadingZeros(b *testing.B) {
 	hash := make([]byte, 32)
+	var result bool
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		hasLeadingZeros(hash, 20)
+		result = hasLeadingZeros(hash, 20)
 	}
+	_ = result
 }
 
 // TestNewGenerator_SecretValidation tests secret length validation
@@ -863,5 +866,124 @@ func TestUnmarshalSolution_InvalidLength(t *testing.T) {
 				t.Error("UnmarshalSolution() should return error for invalid length")
 			}
 		})
+	}
+}
+
+// BenchmarkGenerator_Generate measures challenge generation performance
+func BenchmarkGenerator_Generate(b *testing.B) {
+	gen := mustNewGenerator(testSecret)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var result *Challenge
+	for i := 0; i < b.N; i++ {
+		result, _ = gen.Generate(BaseDifficulty)
+	}
+	// Prevent compiler optimization
+	_ = result
+}
+
+// BenchmarkChallenge_Marshal measures challenge serialization performance
+func BenchmarkChallenge_Marshal(b *testing.B) {
+	gen := mustNewGenerator(testSecret)
+	challenge, _ := gen.Generate(BaseDifficulty)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var result []byte
+	for i := 0; i < b.N; i++ {
+		result = challenge.Marshal()
+	}
+	// Prevent compiler optimization
+	_ = result
+}
+
+// BenchmarkChallenge_Unmarshal measures challenge deserialization performance
+func BenchmarkChallenge_Unmarshal(b *testing.B) {
+	gen := mustNewGenerator(testSecret)
+	challenge, _ := gen.Generate(BaseDifficulty)
+	data := challenge.Marshal()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var result *Challenge
+	for i := 0; i < b.N; i++ {
+		result, _ = UnmarshalChallenge(data)
+	}
+	// Prevent compiler optimization
+	_ = result
+}
+
+// BenchmarkSolution_Marshal measures solution serialization performance
+func BenchmarkSolution_Marshal(b *testing.B) {
+	gen := mustNewGenerator(testSecret)
+	challenge, _ := gen.Generate(BaseDifficulty)
+	solution := &Solution{
+		Challenge: *challenge,
+		Counter:   12345678,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var result []byte
+	for i := 0; i < b.N; i++ {
+		result = solution.Marshal()
+	}
+	// Prevent compiler optimization
+	_ = result
+}
+
+// BenchmarkSolution_Unmarshal measures solution deserialization performance
+func BenchmarkSolution_Unmarshal(b *testing.B) {
+	gen := mustNewGenerator(testSecret)
+	challenge, _ := gen.Generate(BaseDifficulty)
+	solution := &Solution{
+		Challenge: *challenge,
+		Counter:   12345678,
+	}
+	data := solution.Marshal()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var result *Solution
+	for i := 0; i < b.N; i++ {
+		result, _ = UnmarshalSolution(data)
+	}
+	// Prevent compiler optimization
+	_ = result
+}
+
+// BenchmarkSolver_Difficulty18 measures solve time for difficulty 18
+func BenchmarkSolver_Difficulty18(b *testing.B) {
+	gen := mustNewGenerator(testSecret)
+	solver := NewSolver()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		challenge, _ := gen.Generate(18)
+		ctx := context.Background()
+		_, _ = solver.Solve(ctx, challenge)
+	}
+}
+
+// BenchmarkSolver_Difficulty22 measures solve time for difficulty 22
+func BenchmarkSolver_Difficulty22(b *testing.B) {
+	gen := mustNewGenerator(testSecret)
+	solver := NewSolver()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		challenge, _ := gen.Generate(22)
+		ctx := context.Background()
+		_, _ = solver.Solve(ctx, challenge)
 	}
 }

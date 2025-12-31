@@ -252,3 +252,37 @@ func createTempFile(t *testing.T, content string) string {
 
 	return tmpFile
 }
+
+// BenchmarkMemoryStore_Random measures random quote retrieval performance
+func BenchmarkMemoryStore_Random(b *testing.B) {
+	quotes := DefaultQuotes()
+	store := NewMemoryStore(quotes)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var result string
+	for i := 0; i < b.N; i++ {
+		result = store.Random()
+	}
+	// Prevent compiler optimization
+	_ = result
+}
+
+// BenchmarkMemoryStore_Random_Concurrent measures concurrent random quote retrieval
+func BenchmarkMemoryStore_Random_Concurrent(b *testing.B) {
+	quotes := DefaultQuotes()
+	store := NewMemoryStore(quotes)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		var result string
+		for pb.Next() {
+			result = store.Random()
+		}
+		// Prevent compiler optimization
+		_ = result
+	})
+}

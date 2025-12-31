@@ -610,3 +610,125 @@ func TestHandler_ProcessMessage_InvalidState(t *testing.T) {
 		}
 	})
 }
+
+// BenchmarkHandler_HandleConnected measures handling of REQUEST_CHALLENGE message
+func BenchmarkHandler_HandleConnected(b *testing.B) {
+	secret := []byte("test-secret-key-32-bytes-long!!!")
+	generator, _ := pow.NewGenerator(secret)
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
+	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
+
+	config := DefaultHandlerConfig()
+	config.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	h := NewHandler(generator, verifier, quoteStore, config)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		conn := &mockConn{}
+		cc := &connectionContext{
+			state:      stateConnected,
+			remoteAddr: "192.168.1.1:12345",
+			logger:     config.Logger,
+		}
+
+		msg := protocol.NewRequestChallenge()
+		_, _ = h.handleConnected(context.Background(), conn, cc, msg)
+	}
+}
+
+// BenchmarkHandler_HandleChallenging_InvalidSolution measures handling of invalid solutions
+func BenchmarkHandler_HandleChallenging_InvalidSolution(b *testing.B) {
+	secret := []byte("test-secret-key-32-bytes-long!!!")
+	generator, _ := pow.NewGenerator(secret)
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret, ClockSkew: time.Hour})
+	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
+
+	config := DefaultHandlerConfig()
+	config.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	config.MaxAttempts = 1000 // Allow many retries for benchmark
+
+	h := NewHandler(generator, verifier, quoteStore, config)
+
+	// Generate a valid challenge
+	challenge, _ := generator.Generate(pow.MinDifficulty)
+
+	// Create an invalid solution (counter 0 won't solve the challenge)
+	invalidSolution := &pow.Solution{
+		Challenge: *challenge,
+		Counter:   0,
+	}
+	solutionBytes := invalidSolution.Marshal()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		conn := &mockConn{}
+		cc := &connectionContext{
+			state:      stateChallenging,
+			remoteAddr: "192.168.1.1:12345",
+			logger:     config.Logger,
+			challenge:  challenge,
+			attempts:   0,
+		}
+
+		msg := protocol.NewSolution(solutionBytes)
+		_, _ = h.handleChallenging(context.Background(), conn, cc, msg)
+	}
+}
+
+// BenchmarkHandler_SendMessage measures message sending performance
+func BenchmarkHandler_SendMessage(b *testing.B) {
+	secret := []byte("test-secret-key-32-bytes-long!!!")
+	generator, _ := pow.NewGenerator(secret)
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
+	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
+
+	config := DefaultHandlerConfig()
+	config.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	h := NewHandler(generator, verifier, quoteStore, config)
+
+	msg := protocol.NewQuote("The only true wisdom is in knowing you know nothing.")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		conn := &mockConn{}
+		_ = h.sendMessage(conn, msg)
+	}
+}
+
+// BenchmarkHandler_FullChallengeGeneration measures the full challenge generation flow
+func BenchmarkHandler_FullChallengeGeneration(b *testing.B) {
+	secret := []byte("test-secret-key-32-bytes-long!!!")
+	generator, _ := pow.NewGenerator(secret)
+	verifier := mustNewVerifier(pow.VerifierConfig{Secret: secret})
+	quoteStore := quotes.NewMemoryStore([]string{"Test quote"})
+
+	config := DefaultHandlerConfig()
+	config.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	config.Difficulty = pow.MinDifficulty
+
+	h := NewHandler(generator, verifier, quoteStore, config)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		conn := &mockConn{}
+		cc := &connectionContext{
+			state:      stateConnected,
+			remoteAddr: "192.168.1.1:12345",
+			logger:     config.Logger,
+		}
+
+		// Handle REQUEST_CHALLENGE -> generates and sends CHALLENGE
+		msg := protocol.NewRequestChallenge()
+		_, _ = h.handleConnected(context.Background(), conn, cc, msg)
+	}
+}
