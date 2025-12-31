@@ -32,4 +32,7 @@ Thumbs.db
 consensus.md
 init.md
 .docs/
-benchmarks/
+# Benchmark data (profiles are large binary files)
+benchmarks/profiles/
+benchmarks/*.txt
+!benchmarks/flamegraphs/
