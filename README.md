@@ -314,6 +314,23 @@ make flamegraph-view-cpu
 make flamegraph-view-mem
 ```
 
+### Flamegraphs
+
+#### PoW Solver CPU Profile
+Shows SHA-256 `blockSHA2` consuming 56.75% of CPU time - expected for hash-based proof of work.
+
+![CPU Flamegraph](benchmarks/flamegraphs/cpu-flamegraph.png)
+
+#### PoW Memory Allocations
+Shows marshal/unmarshal operations dominating allocations (96-112 bytes per operation).
+
+![Memory Flamegraph](benchmarks/flamegraphs/mem-flamegraph.png)
+
+#### Rate Limiter CPU Profile
+Shows mutex contention patterns in concurrent scenarios with goroutine scheduling overhead.
+
+![Rate Limiter Flamegraph](benchmarks/flamegraphs/ratelimit-cpu-flamegraph.png)
+
 ### Benchmark Comparison
 
 Compare benchmark results after changes:
